@@ -71,50 +71,61 @@ class RDB2ABOXConverter():
                         domain_instance_name = table.get_table_name() + "_instance_" + row_id 
                         domain_instance = ontology.get_instance_object_by_name(domain_instance_name) # take the domain instance
 
-                        for range_table_name, tuple in table.get_fk_tables_dict().items():
-                                name_columns_fk = [column.get_column_name() for column in tuple[1]] # take the referenced columns
-                                name_columns_ori = [column.get_column_name() for column in tuple[2]] # take the columns with the reference
-                                name_columns_pk = [column_name for column_name in table.get_pk_columns().keys()] # take the primary key columns
+                        for range_table_name, fk_name_dict in table.get_fk_tables_dict().items():
+                                for fk_name, tuple in fk_name_dict.items():
+                                    name_columns_fk = [column.get_column_name() for column in tuple[1]] # take the referenced columns
+                                    name_columns_ori = [column.get_column_name() for column in tuple[2]] # take the columns with the reference
+                                    name_columns_pk = [column_name for column_name in table.get_pk_columns().keys()] # take the primary key columns
+                                    # print(name_columns_fk)
+                                    # print("table_name ", table.get_table_name())
+                                    if table.get_table_name() != range_table_name:
+                                        ### use the reference columns name starting from the referenced value of the fks
+                                        # print("primo if")
+                                        primary_string_range = construct_primary_key_string(table, row_id,
+                                            name_columns_fk, name_columns_ori)
+                                    else:
+                                        # print("secondo if")
+                                        ### use the reference columns name starting from the pk of the tables (because the fks reference to the pk itself)
+                                        primary_string_range = construct_primary_key_string(table, row_id,
+                                            name_columns_pk, name_columns_ori)
 
-                                if table.get_table_name() != range_table_name:
-                                    ### use the reference columns name starting from the referenced value of the fks 
-                                    primary_string_range = construct_primary_key_string(table, row_id,
-                                        name_columns_fk, name_columns_ori)
-                                else:
-                                    ### use the reference columns name starting from the pk of the tables (because the fks reference to the pk itself)
-                                    primary_string_range = construct_primary_key_string(table, row_id,
-                                        name_columns_pk, name_columns_ori)
-
-                                if range_table_name in ontology.get_classes_and_properties()[table.get_table_name()]["object_properties"]: # iterate over the object properties
-                                    # takes the direct object properties
-                                    direct_property = ontology.get_classes_and_properties()[table.get_table_name()]["object_properties"][range_table_name]["direct"]
-                                    if primary_string_range is not None:
-                                        range_instance_name = range_table_name + "_instance_" + primary_string_range
-                                        # get the range instance
-                                        range_instance = ontology.get_instance_object_by_name(range_instance_name)
-                                        if not ontology.is_in_object_property_instance(domain_instance_name, range_instance_name):
-                                            # create the object property using the domain instance, the range instance and the direct property
-                                            ontology.create_object_property_instance(domain_instance, range_instance, direct_property)
-                                            ontology.set_object_property_instance(domain_instance_name, range_instance_name)
-                                            ontology.set_object_property_instance(range_instance_name, domain_instance_name)    
+                                    if range_table_name in ontology.get_classes_and_properties()[table.get_table_name()]["object_properties"]: # iterate over the object properties
+                                        # takes the direct object properties
+                                        #print("range_table_name ", range_table_name)
+                                        if table.get_table_name() != range_table_name:
+                                            # print(fk_name)
+                                            # print(ontology.get_classes_and_properties()[table.get_table_name()]["object_properties"][range_table_name][fk_name])
+                                            direct_property = ontology.get_classes_and_properties()[table.get_table_name()]["object_properties"][range_table_name][fk_name][name_columns_ori[0]]["direct"]
+                                        else:
+                                            direct_property = ontology.get_classes_and_properties()[table.get_table_name()]["object_properties"][range_table_name][fk_name][name_columns_ori[0]]["direct"]
+                                        if primary_string_range is not None:
+                                            range_instance_name = range_table_name + "_instance_" + primary_string_range
+                                            # get the range instance
+                                            range_instance = ontology.get_instance_object_by_name(range_instance_name)
+                                            if not ontology.is_in_object_property_instance(domain_instance_name, range_instance_name):
+                                                # create the object property using the domain instance, the range instance and the direct property
+                                                ontology.create_object_property_instance(domain_instance, range_instance, direct_property)
+                                                ontology.set_object_property_instance(domain_instance_name, range_instance_name)
+                                                ontology.set_object_property_instance(range_instance_name, domain_instance_name)    
 
                 else: # if the table is a bridge table
                     for row_id in table.get_rows(): #iterates over the id of the table
                         instance_dict = {}
                         table_names = []    
                         # take the instance referenced by each row of the bridge tables          
-                        for table_p_name, prop_table_tuple in table.get_fk_tables_dict().items(): 
-                            name_columns_fk = [column.get_column_name() for column in prop_table_tuple[1]]
-                            name_columns_ori = [column.get_column_name() for column in prop_table_tuple[2]]
-                            primary_string_range = construct_primary_key_string(table, row_id ,name_columns_fk, name_columns_ori)
-                            instance_dict[table_p_name] = ontology.get_instance_object_by_name(table_p_name + "_instance_" + primary_string_range)
-                            table_names.append(table_p_name)
+                        for table_p_name, fk_name_dict in table.get_fk_tables_dict().items(): 
+                            for fk_name, prop_table_tuple in fk_name_dict.items(): 
+                                name_columns_fk = [column.get_column_name() for column in prop_table_tuple[1]]
+                                name_columns_ori = [column.get_column_name() for column in prop_table_tuple[2]]
+                                primary_string_range = construct_primary_key_string(table, row_id ,name_columns_fk, name_columns_ori)
+                                instance_dict[table_p_name] = ontology.get_instance_object_by_name(table_p_name + "_instance_" + primary_string_range)
+                                table_names.append(table_p_name)
                         domain_instance = instance_dict[table_names[0]]
                         range_instance = instance_dict[table_names[1]]
 
                         # once the instances are identified, creates the object property instance between them (the object property
                         # is that resulting from the bridge table) 
-                        direct_property = ontology.get_classes_and_properties()[table_names[0]]["object_properties"][table_names[1]]["direct"]
+                        direct_property = ontology.get_classes_and_properties()[table_names[0]]["object_properties"][table_names[1]][table.get_table_name()]["direct"]
 
                         ontology.create_object_property_instance(domain_instance, range_instance, direct_property)
 

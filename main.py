@@ -2,9 +2,10 @@ import argparse
 from rdb_2_tbox_converter import *
 from rdb_2_abox_converter import *
 from relational_database import *
+import pickle
 
 if __name__ == '__main__':
-    
+    filename = "rdb.pkl"
     
     argParser = argparse.ArgumentParser()
     argParser.add_argument("-ddl", "--ddl_file", type=str, help="the name of the ddl file in input")
@@ -13,7 +14,13 @@ if __name__ == '__main__':
     argParser.add_argument("-owl", "--owl_filename", type=str, help="the owl filename to create")
 
     args = argParser.parse_args()
-    rdb = RelationalDatabase(args.ddl_file, args.dml_file)
+    if not os.path.isfile("rdb.pkl"):
+        rdb = RelationalDatabase(args.ddl_file, args.dml_file)
+        with open(filename, 'wb') as outp:  # Overwrites any existing file.
+            pickle.dump(rdb, outp, pickle.HIGHEST_PROTOCOL)
+    else:
+        with open(filename, 'rb') as inp:  # Overwrites any existing file.
+            rdb = pickle.load(inp)
 
     rdb_2_tbox_converter = RDB2TBOXConverter()
 

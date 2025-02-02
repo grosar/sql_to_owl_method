@@ -1,4 +1,5 @@
 /__pycache__/*
 sql_folder/__pycache__/*
 test_queries/__pycache__
-
+/ontology_folder/
+sql_parser.py

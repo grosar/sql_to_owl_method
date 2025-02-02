@@ -28,8 +28,8 @@ class RDB2TBOXConverter():
         tables = relational_database.get_tables_dict()
         for table_name, table in (tables.items()):
             #count_fk = table.get_number_of_fk_columns()
-            columns_with_fk_references_table = [column_references_table.get_fk_table_name() for column_references_table in table.get_fk_columns().values()]
-            count_fk = len(set(columns_with_fk_references_table))
+            # columns_with_fk_references_table = [column_references_table.get_fk_table_name() for column_references_table in table.get_fk_columns().values()]
+            count_fk = table.get_number_of_fks()
             if count_fk == 0:
                 self._process_no_fk_table(ontology, table)
 
@@ -126,7 +126,7 @@ class RDB2TBOXConverter():
         #print("caso")
         if table.is_the_fk_columns_relative_to_one_table():
             
-            referring_table = list(table.get_fk_tables_dict().values())[0][0]
+            referring_table = list(table.get_fk_tables_dict().values())[0][table._list_foreign_keys[0]][0]
 
             column_with_fk_reference_table = referring_table.get_table_name()
             
@@ -175,32 +175,33 @@ class RDB2TBOXConverter():
 
 
     def _translate_more_than_1_fk_table_not_bridge(self, ontology: Ontology, table_with_fk: Table):
-        for tuple_references in table_with_fk.get_fk_tables_dict().values():
-            reference_column = tuple_references[1][0]
-            column = tuple_references[2][0]
+        for _, fk_name_dict in table_with_fk.get_fk_tables_dict().items():
+            for tuple_references in fk_name_dict.values():
+                reference_column = tuple_references[1][0]
+                column = tuple_references[2][0]
 
-            """
-                Creates the range class
-            """
-            if reference_column.get_table_name() not in ontology.get_created_classes():
-                RangeClass = ontology.create_class(reference_column.get_table_name(), Thing, "Thing")
-            else:
-                RangeClass = ontology.get_created_classes()[reference_column.get_table_name()]
+                """
+                    Creates the range class
+                """
+                if reference_column.get_table_name() not in ontology.get_created_classes():
+                    RangeClass = ontology.create_class(reference_column.get_table_name(), Thing, "Thing")
+                else:
+                    RangeClass = ontology.get_created_classes()[reference_column.get_table_name()]
 
 
-            """
-                Creates the domain class
-            """
-            if table_with_fk.get_table_name() not in ontology.get_created_classes():
-                DomainClass = ontology.create_class(table_with_fk.get_table_name(), Thing, "Thing")
-            else:
-                DomainClass = ontology.get_created_classes()[table_with_fk.get_table_name()]
+                """
+                    Creates the domain class
+                """
+                if table_with_fk.get_table_name() not in ontology.get_created_classes():
+                    DomainClass = ontology.create_class(table_with_fk.get_table_name(), Thing, "Thing")
+                else:
+                    DomainClass = ontology.get_created_classes()[table_with_fk.get_table_name()]
 
-            """
-                Create the 1 to many object properties
-            """
-            ontology.add_1_to_many_object_properties_to_class(column, table_with_fk,
-                reference_column.get_table_name(), DomainClass, RangeClass)
+                """
+                    Create the 1 to many object properties
+                """
+                ontology.add_1_to_many_object_properties_to_class(column, table_with_fk,
+                    reference_column.get_table_name(), DomainClass, RangeClass)
 
 
     def _translate_2fk_bridge_table(self, ontology: Ontology, table_with_fk: Table):
@@ -209,17 +210,18 @@ class RDB2TBOXConverter():
         """
             Creates the classes to connect with the many to many relationship
         """
-        for tuple_references in table_with_fk.get_fk_tables_dict().values():
+        for _, fk_name_dict in table_with_fk.get_fk_tables_dict().items():
+            for tuple_references in fk_name_dict.values():
             
-            referenced_table = tuple_references[0]
-            reference_column = tuple_references[1][0]
+                referenced_table = tuple_references[0]
+                reference_column = tuple_references[1][0]
 
-            if referenced_table.get_table_name() not in ontology.get_created_classes():
-                RangeClass = ontology.create_class(referenced_table.get_table_name(), Thing, "Thing")
-            else:
-                RangeClass = ontology.get_created_classes()[referenced_table.get_table_name()]
+                if referenced_table.get_table_name() not in ontology.get_created_classes():
+                    RangeClass = ontology.create_class(referenced_table.get_table_name(), Thing, "Thing")
+                else:
+                    RangeClass = ontology.get_created_classes()[referenced_table.get_table_name()]
 
-            Classes.append((reference_column, referenced_table, RangeClass))
+                Classes.append((reference_column, referenced_table, RangeClass))
 
         domain_table = Classes[0][1]
         range_table = Classes[1][1]

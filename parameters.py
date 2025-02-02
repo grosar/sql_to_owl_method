@@ -11,7 +11,7 @@ NEGATIVE_ANSWERS = ["n", "no"]
 
 
 
-LOOKUP_TYPE_DICT = {"integer":int, "bigint": Long, "long":Long, "int":int, 
+LOOKUP_TYPE_DICT = {"integer":int, "bigint": Long, "long":Long, "int":int, "smallint":int, 
                     "float":float, "real":float, "numeric":Decimal, "decimal":Decimal,
                     "boolean": bool,
                     "char":str, "character":str, "text":str, "character varying":str,"character varying[]":str, "varchar":str,

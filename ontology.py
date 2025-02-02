@@ -189,59 +189,76 @@ class Ontology():
         NewObjectProperty = None
         functional_property = False
         inverse_functional_property = False
-
+        name_property = ""
         with self._onto:
             same_range = True
             if domain_table_name == range_table_name and type_prop != "Inverse":
                 # print(column._column_name)
+                
                 if acquire_user_choice(str(column.get_column_name()) + " of " + domain_table_name + " table is Symmetric? (y/n)"): 
                     same_range = False
-                    NewObjectProperty = types.new_class(domain_table_name + "_" + column.get_column_name(), (DomainClass >> RangeClass, SymmetricProperty))
+                    name_property = domain_table_name + "_" + column.get_column_name()
+                    NewObjectProperty = types.new_class(name_property, (DomainClass >> RangeClass, SymmetricProperty))
 
                 if column.on_delete_is_cascade():
                     if acquire_user_choice(str(column.get_column_name()) + " of " + domain_table_name + " table is Transitive? (y/n)"): 
                         same_range = False
-                        NewObjectProperty = types.new_class(domain_table_name + "_" + column.get_column_name(), (DomainClass >> RangeClass, TransitiveProperty))
+                        name_property = domain_table_name + "_" + column.get_column_name()
+                        NewObjectProperty = types.new_class(name_property, (DomainClass >> RangeClass, TransitiveProperty))
 
             if type_prop == "Nothing" and bridge_table is not None and same_range:
+                name_property = bridge_table
                 NewObjectProperty = types.new_class(bridge_table, (DomainClass >> RangeClass,)) 
 
             elif type_prop == "Func" and same_range:
-                NewObjectProperty = types.new_class(domain_table_name + "_has_a_" + range_table_name, (DomainClass >> RangeClass, FunctionalProperty))
+                name_property =  domain_table_name + "_has_a_" + column.get_column_name() + "_of_" + range_table_name
+                NewObjectProperty = types.new_class(name_property, (DomainClass >> RangeClass, FunctionalProperty))
                 functional_property = True
 
             elif type_prop == "Inv" and same_range:
-                NewObjectProperty = types.new_class(domain_table_name + "_has_a_" + range_table_name, (DomainClass >> RangeClass, InverseFunctionalProperty))
+                name_property =  domain_table_name + "_has_a_" + column.get_column_name() + "_of_" + range_table_name
+                NewObjectProperty = types.new_class(name_property, (DomainClass >> RangeClass, InverseFunctionalProperty))
                 inverse_functional_property = True
 
             elif type_prop == "FuncInv" and same_range:
-                NewObjectProperty = types.new_class(domain_table_name + "_has_a_" + range_table_name, (DomainClass >> RangeClass, FunctionalProperty, InverseFunctionalProperty))
+                name_property =  domain_table_name + "_has_a_" + column.get_column_name() + "_of_" + range_table_name
+                NewObjectProperty = types.new_class(name_property, (DomainClass >> RangeClass, FunctionalProperty, InverseFunctionalProperty))
                 functional_property = True
                 inverse_functional_property = True
 
             elif type_prop == "Inverse" and domain_table_name == range_table_name:
-                NewObjectProperty = types.new_class("INV_" + original_property_name , (DomainClass >> RangeClass,))
+                name_property =  "INV_" + original_property_name
+                NewObjectProperty = types.new_class(name_property, (DomainClass >> RangeClass,))
 
             elif type_prop == "Inverse" and original_property_name is not None and bridge_table is None and same_range:
-                NewObjectProperty = types.new_class(domain_table_name + "_belongs_to_" + range_table_name, (DomainClass >> RangeClass,))
+                name_property =  domain_table_name + "_belongs_to_" + column.get_column_name() + "_of_" + range_table_name
+                NewObjectProperty = types.new_class(name_property, (DomainClass >> RangeClass,))
 
             elif type_prop == "Inverse" and original_property_name is not None and bridge_table is not None and same_range:
-                NewObjectProperty = types.new_class("INV_" + original_property_name , (DomainClass >> RangeClass,))
+                name_property =  "INV_" + original_property_name
+                NewObjectProperty = types.new_class(name_property, (DomainClass >> RangeClass,))
         
         """Save the properties that are created in this function"""
-        self._created_object_property[domain_table_name + OBJECT_PROPERTY_SEPARATOR + range_table_name] = NewObjectProperty
+        #self._created_object_property[domain_table_name + OBJECT_PROPERTY_SEPARATOR + range_table_name] = NewObjectProperty
 
-        if range_table_name not in self._classes_and_properties[domain_table_name]["object_properties"]:
-            self._classes_and_properties[domain_table_name]["object_properties"][range_table_name] = {"direct": {}}
-            self._classes_and_properties[domain_table_name]["object_properties"][range_table_name]["direct"] = \
-            {"property": NewObjectProperty, "domain":DomainClass, "range": RangeClass,
-             "functional_property": functional_property, "inverse_functional_property": inverse_functional_property}
-                
+        if not bridge_table:
+
+            if range_table_name not in self._classes_and_properties[domain_table_name]["object_properties"]:
+                self._classes_and_properties[domain_table_name]["object_properties"][range_table_name] = {}
+            if column.get_constraint_name() not in self._classes_and_properties[domain_table_name]["object_properties"][range_table_name]:
+                self._classes_and_properties[domain_table_name]["object_properties"][range_table_name][column.get_constraint_name()] = {}
+            if column.get_column_name() not in self._classes_and_properties[domain_table_name]["object_properties"][range_table_name][column.get_constraint_name()]:
+                self._classes_and_properties[domain_table_name]["object_properties"][range_table_name][column.get_constraint_name()][column.get_column_name()] = {"direct": {"name_property": name_property, "property": NewObjectProperty, "domain":DomainClass, "range": RangeClass,"functional_property": functional_property, "inverse_functional_property": inverse_functional_property}}
+            else:
+                self._classes_and_properties[domain_table_name]["object_properties"][range_table_name][column.get_constraint_name()][column.get_column_name()]["inverse"] = {"name_property": name_property, "property": NewObjectProperty, "domain":DomainClass, "range": RangeClass,"functional_property": functional_property, "inverse_functional_property": inverse_functional_property}
+                    
         else:
-
-            self._classes_and_properties[domain_table_name]["object_properties"][range_table_name]["inverse"] = \
-            {"property": NewObjectProperty, "domain":DomainClass, "range": RangeClass,
-             "functional_property": functional_property, "inverse_functional_property": inverse_functional_property}
+            if range_table_name not in self._classes_and_properties[domain_table_name]["object_properties"]:
+                self._classes_and_properties[domain_table_name]["object_properties"][range_table_name] = {}
+            if bridge_table not in self._classes_and_properties[domain_table_name]["object_properties"][range_table_name]:
+                self._classes_and_properties[domain_table_name]["object_properties"][range_table_name][bridge_table] = {"direct": {"name_property": name_property, "property": NewObjectProperty, "domain":DomainClass, "range": RangeClass,"functional_property": functional_property, "inverse_functional_property": inverse_functional_property}}
+            else:
+                self._classes_and_properties[domain_table_name]["object_properties"][range_table_name][bridge_table]["inverse"] = {"name_property": name_property, "property": NewObjectProperty, "domain":DomainClass, "range": RangeClass,"functional_property": functional_property, "inverse_functional_property": inverse_functional_property}
 
         return NewObjectProperty
 

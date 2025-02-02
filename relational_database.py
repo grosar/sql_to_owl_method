@@ -4,12 +4,16 @@ from xsd_datatype import *
 import sqlparse
 from parameters import *
 import utilities
+import json
 
 class RelationalDatabase():
 
     def __init__(self, DDLFilename, DMLFilename = None):
         owl_dict = self.new_parse_from_file(DDLFilename, False, True)
         owl_dict = self._reorganize_rdb_schema_dict(owl_dict)
+        json_string = json.dumps(owl_dict, sort_keys=True, indent=4)
+        with open("prova.json", "w") as outfile:
+            outfile.write(json_string)
         self._schema = owl_dict
         self._dict_tables = {}
         for table in owl_dict["tables"]:
@@ -18,18 +22,19 @@ class RelationalDatabase():
 
         for table in self._dict_tables.values():
             for original_column_name, column_reference in table._dict_foreign_keys_ref.items():
-                if column_reference["table"] not in table._dict_foreign_keys_tables.keys():
-                    table._dict_foreign_keys_tables[column_reference["table"]] = (self._dict_tables[column_reference["table"]],
-                        [self._dict_tables[column_reference["table"]]._dict_columns[column_reference["column"]]], 
-                        [self._dict_tables[table.get_table_name()]._dict_columns[original_column_name]])
-                    table._dict_foreign_keys_columns[original_column_name] = self._dict_tables[column_reference["table"]]._dict_columns[column_reference["column"]]
+                if column_reference[1]["table"] not in table._dict_foreign_keys_tables.keys():
+                    table._dict_foreign_keys_tables[column_reference[1]["table"]] = {}
+                if column_reference[0] not in table._dict_foreign_keys_tables[column_reference[1]["table"]]:
+                    table._dict_foreign_keys_tables[column_reference[1]["table"]][column_reference[0]] = (self._dict_tables[column_reference[1]["table"]],
+                    [self._dict_tables[column_reference[1]["table"]]._dict_columns[column_reference[1]["column"]]], 
+                    [self._dict_tables[table.get_table_name()]._dict_columns[original_column_name]])
+                
                 else:
-                    table._dict_foreign_keys_tables[column_reference["table"]][1].append(
-                        self._dict_tables[column_reference["table"]]._dict_columns[column_reference["column"]])
-                    table._dict_foreign_keys_tables[column_reference["table"]][2].append(
+                    table._dict_foreign_keys_tables[column_reference[1]["table"]][column_reference[0]][1].append(
+                        self._dict_tables[column_reference[1]["table"]]._dict_columns[column_reference[1]["column"]])
+                    table._dict_foreign_keys_tables[column_reference[1]["table"]][column_reference[0]][2].append(
                         self._dict_tables[table.get_table_name()]._dict_columns[original_column_name])
-                    table._dict_foreign_keys_columns[original_column_name] = self._dict_tables[column_reference["table"]]._dict_columns[column_reference["column"]]
-            
+                table._dict_foreign_keys_columns[original_column_name] = self._dict_tables[column_reference[1]["table"]]._dict_columns[column_reference[1]["column"]]
         if DMLFilename is not None:
             self.insert_data_into_database(DMLFilename)
 
@@ -239,6 +244,8 @@ class RelationalDatabase():
                     for new_column in new_dict["tables"][table_index]["columns"]:
                         if alter_column["name"] == new_column["name"]:
                             new_column["references"] = alter_column["references"]
+                            if "constraint_name" in alter_column:
+                                new_column["constraint_name"] = alter_column["constraint_name"]
 
             if old_alters.get("primary_keys") is not None:
                 new_dict["tables"][table_index]["primary_key"] = old_alters["primary_keys"][0]["columns"]
@@ -266,6 +273,7 @@ def take_insert_statements(DMLFilename):
 class Table():
     def __init__(self, table_name = None, list_column = None, primary_keys = None):
         self._table_name = table_name
+        self._list_foreign_keys = []
         self._dict_columns, self._dict_primary_keys, self._dict_foreign_keys_ref = self.fill_columns(table_name, list_column, primary_keys)
         self._dict_columns_with_fk, self._dict_columns_without_fk = self.takes_fk_and_not_fk_columns()
         self._dict_foreign_keys_tables = {}
@@ -303,6 +311,9 @@ class Table():
     def get_number_of_fk_columns(self):
         return len(self._dict_foreign_keys_columns.keys())
 
+    def get_number_of_fks(self):
+        return len(self._list_foreign_keys)
+
     def get_number_of_n_fk_columns(self):
         return (len(self._dict_columns.keys()) - len(self._dict_foreign_keys_columns.keys()))
 
@@ -322,10 +333,7 @@ class Table():
         return self._rows[row_id]
 
     def is_the_fk_columns_relative_to_one_table(self):
-        column_fk_table_name = []
-        for column_fk in self._dict_columns_with_fk.values():
-            column_fk_table_name.append(column_fk._fk_table_name)
-        return (len(set(column_fk_table_name)) == 1)
+        return (self.get_number_of_fks() == 1)
 
     def takes_fk_and_not_fk_columns(self):
         columns_with_fk = {}
@@ -354,10 +362,11 @@ class Table():
                 
             if fk:
                 column_object = Column(table_name, column["name"], column["check"], column["default"], column["nullable"], pk,
-                                                        fk, column["references"]["table"], column["references"]["column"], column["size"], column["type"], column["unique"], column["references"]["on_delete"])
+                                                        fk, column["references"]["table"], column["references"]["column"], column["size"], column["type"], column["unique"], column["references"]["on_delete"], column["constraint_name"])
+                self._list_foreign_keys.append(column["constraint_name"])
             else:
                 column_object = Column(table_name, column["name"], column["check"], column["default"], column["nullable"], pk,
-                                                        fk, None, None, column["size"], column["type"], column["unique"], None)
+                                                        fk, None, None, column["size"], column["type"], column["unique"], None, None)
 
             dict_columns[column["name"]] = column_object
 
@@ -365,7 +374,7 @@ class Table():
                 dict_primary_keys[column["name"]] = column_object
             
             if fk:
-                dict_foreign_keys_ref[column["name"]] = column["references"]
+                dict_foreign_keys_ref[column["name"]] = (column["constraint_name"], column["references"])
             
         return dict_columns, dict_primary_keys, dict_foreign_keys_ref
 
@@ -387,7 +396,7 @@ class Table():
 
 
 class Column():
-    def __init__(self, table_name, column_name, check, default, nullable, pk, fk, fk_table_name, fk_column_name_ref, size, type, unique, on_delete):
+    def __init__(self, table_name, column_name, check, default, nullable, pk, fk, fk_table_name, fk_column_name_ref, size, type, unique, on_delete, constraint_name):
         self._table_name = table_name
         self._column_name = column_name
         self._check = check
@@ -401,6 +410,7 @@ class Column():
         self._type = type
         self._unique = unique
         self._on_delete = on_delete
+        self._constraint_name = constraint_name
 
     def get_table_name(self):
         return self._table_name
@@ -477,5 +487,7 @@ class Column():
     def on_delete_is_cascade(self):
         return str.lower(self._on_delete) == "cascade"
 
+    def get_constraint_name(self):
+        return self._constraint_name
 
 
